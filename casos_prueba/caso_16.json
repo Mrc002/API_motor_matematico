@@ -1,0 +1,29 @@
+{
+  "bloque_contexto": {
+    "contexto_ingresado_por_usuario": "Nodos en cuadrantes negativos"
+  },
+  "unidades": {
+    "unidad_medida_distancia": "m",
+    "unidad_medida_fuerza": "N"
+  },
+  "bloque_fisico": {
+    "nodos": [
+      {
+        "id": "A",
+        "x": -5.5,
+        "y": -10.2
+      }
+    ],
+    "vectores_fuerza": [
+      {
+        "id": "F1",
+        "etiqueta": "Fuerza",
+        "nodo_origen_id": "A",
+        "magnitud": 100.0,
+        "angulo_grados": 0.0,
+        "es_saliente": true
+      }
+    ]
+  },
+  "parametros_asumidos": {}
+}

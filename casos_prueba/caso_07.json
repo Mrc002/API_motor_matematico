@@ -1,0 +1,45 @@
+{
+  "bloque_contexto": {
+    "contexto_ingresado_por_usuario": "Tres fuerzas en el origen"
+  },
+  "unidades": {
+    "unidad_medida_distancia": "m",
+    "unidad_medida_fuerza": "N"
+  },
+  "bloque_fisico": {
+    "nodos": [
+      {
+        "id": "A",
+        "x": 0.0,
+        "y": 0.0
+      }
+    ],
+    "vectores_fuerza": [
+      {
+        "id": "F1",
+        "etiqueta": "Der",
+        "nodo_origen_id": "A",
+        "magnitud": 100.0,
+        "angulo_grados": 0.0,
+        "es_saliente": true
+      },
+      {
+        "id": "F2",
+        "etiqueta": "Arr",
+        "nodo_origen_id": "A",
+        "magnitud": 100.0,
+        "angulo_grados": 90.0,
+        "es_saliente": true
+      },
+      {
+        "id": "F3",
+        "etiqueta": "Diag",
+        "nodo_origen_id": "A",
+        "magnitud": 141.42,
+        "angulo_grados": 225.0,
+        "es_saliente": true
+      }
+    ]
+  },
+  "parametros_asumidos": {}
+}

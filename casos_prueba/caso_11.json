@@ -1,0 +1,34 @@
+{
+  "bloque_contexto": {
+    "contexto_ingresado_por_usuario": "Tirando desde el eje (sin torque)"
+  },
+  "unidades": {
+    "unidad_medida_distancia": "m",
+    "unidad_medida_fuerza": "N"
+  },
+  "bloque_fisico": {
+    "nodos": [
+      {
+        "id": "Origen",
+        "x": 0.0,
+        "y": 0.0
+      },
+      {
+        "id": "Mango",
+        "x": 5.0,
+        "y": 0.0
+      }
+    ],
+    "vectores_fuerza": [
+      {
+        "id": "F1",
+        "etiqueta": "Tiro paralelo",
+        "nodo_origen_id": "Mango",
+        "magnitud": 100.0,
+        "angulo_grados": 0.0,
+        "es_saliente": true
+      }
+    ]
+  },
+  "parametros_asumidos": {}
+}

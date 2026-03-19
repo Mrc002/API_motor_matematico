@@ -1,0 +1,29 @@
+{
+  "bloque_contexto": {
+    "contexto_ingresado_por_usuario": "Tirando de una caja a la derecha"
+  },
+  "unidades": {
+    "unidad_medida_distancia": "m",
+    "unidad_medida_fuerza": "N"
+  },
+  "bloque_fisico": {
+    "nodos": [
+      {
+        "id": "A",
+        "x": 0.0,
+        "y": 0.0
+      }
+    ],
+    "vectores_fuerza": [
+      {
+        "id": "F1",
+        "etiqueta": "Tiro",
+        "nodo_origen_id": "A",
+        "magnitud": 200.0,
+        "angulo_grados": 0.0,
+        "es_saliente": true
+      }
+    ]
+  },
+  "parametros_asumidos": {}
+}

@@ -1,0 +1,29 @@
+{
+  "bloque_contexto": {
+    "contexto_ingresado_por_usuario": "Prueba de \u00e1ngulo negativo"
+  },
+  "unidades": {
+    "unidad_medida_distancia": "m",
+    "unidad_medida_fuerza": "N"
+  },
+  "bloque_fisico": {
+    "nodos": [
+      {
+        "id": "A",
+        "x": 0.0,
+        "y": 0.0
+      }
+    ],
+    "vectores_fuerza": [
+      {
+        "id": "F1",
+        "etiqueta": "Abajo",
+        "nodo_origen_id": "A",
+        "magnitud": 50.0,
+        "angulo_grados": -90.0,
+        "es_saliente": true
+      }
+    ]
+  },
+  "parametros_asumidos": {}
+}
