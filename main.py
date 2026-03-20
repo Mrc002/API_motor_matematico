@@ -1,9 +1,18 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Set
 import math
 
 app = FastAPI(title="Motor Matemático - Math IA")
+# Permitir CORS para todas las fuentes (útil para pruebas, pero ajustar en producción)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Permite que cualquier cliente (como Chrome) se conecte
+    allow_credentials=True,
+    allow_methods=["*"], # Permite peticiones POST, GET, etc.
+    allow_headers=["*"], # Permite cualquier encabezado en el JSON
+)
 
 # ==========================================
 # 1. NÚCLEO MATEMÁTICO (Variables Manchadas)
@@ -128,8 +137,6 @@ def calcular_diagrama(peticion: PeticionCalculo):
         # Si r_x y r_y no estuvieran manchados, esto funciona perfecto.
         # Aquí asumiremos que la sobrecarga de operadores que hiciste soporta multiplicaciones directas.
         
-        # Como no definiste __mul__ para (ValorFisico * ValorFisico) en tu código original, 
-        # usaré los valores puros para calcular el momento:
         momento_f_val = (r_x.valor * fy.valor) - (r_y.valor * fx.valor)
         
         # Unimos las manchas de todas las variables involucradas

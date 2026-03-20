@@ -3,11 +3,11 @@ import json
 import os
 import math
 
-URL = "http://127.0.0.1:8000/calcular"
+URL = "https://api-motor-matematico.onrender.com/calcular"
 CARPETA = "casos_prueba"
 
 # ==========================================
-# 🧠 EL ORÁCULO COMPLETO (20 Casos de Prueba)
+# EL ORÁCULO COMPLETO (20 Casos de Prueba)
 # ==========================================
 ORACULO = {
     "caso_01.json": {"Fx": 0.0, "Fy": -500.0, "M": 0.0, "Eq": False, "Reacciones": {"Reaccion_Ay": 500.0}},
@@ -56,7 +56,7 @@ def ejecutar_prueba(archivo_seleccionado, modo_silencioso=False):
 
     # === BLOQUE DE MANEJO DE ERRORES Y TIMEOUT ===
     try:
-        respuesta = requests.post(URL, json=payload, timeout=5.0)
+        respuesta = requests.post(URL, json=payload, timeout=50.0)
     except requests.exceptions.Timeout:
         if not modo_silencioso: 
             print(f"❌ ERROR DE TIEMPO: La API tardó más de 5 segundos en responder ({archivo_seleccionado}).")
