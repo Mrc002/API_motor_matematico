@@ -1,8 +1,10 @@
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Set
 import math
+from gp_tutor import GPTutor
 
 app = FastAPI(title="Motor Matemático - Math IA")
 # Permitir CORS para todas las fuentes (útil para pruebas, pero ajustar en producción)
@@ -183,3 +185,30 @@ def calcular_diagrama(peticion: PeticionCalculo):
 
     print("--- Resultados calculados con éxito ---")
     return resultado
+
+# ... (Tu código actual y tu endpoint /calcular se quedan intactos) ...
+
+# --- NUEVO ENDPOINT PARA LA PROGRAMACIÓN GENÉTICA ---
+@app.post("/calculargp")
+async def calcular_con_tutor_genetico(payload: dict):
+    # 1. Extraer los datos que envía Flutter
+    bloque_fisico = payload.get("bloque_fisico", {})
+    nodos = bloque_fisico.get("nodos", [])
+    vectores = bloque_fisico.get("vectores_fuerza", [])
+    
+    # 2. Validar que haya datos suficientes para evolucionar
+    if not nodos or not vectores:
+        return {
+            "error": "Se requieren nodos y vectores para generar los pasos."
+        }
+
+    # 3. Iniciar el motor evolutivo
+    tutor_ia = GPTutor(nodos, vectores)
+    
+    # 4. Evolucionar y obtener la ruta más humana
+    pasos_evolutivos = tutor_ia.entrenar_y_obtener_mejor_ruta()
+
+    # 5. Devolver únicamente las instrucciones pedagógicas
+    return {
+        "instrucciones_paso_a_paso": pasos_evolutivos
+    }
