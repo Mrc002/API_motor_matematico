@@ -1,125 +1,101 @@
-import random
+import numpy as np
+import math
+import sys
+import io
+from gplearn.genetic import SymbolicRegressor
+from gplearn.functions import make_function
 
-class GPTutor:
-    def __init__(self, nodos_data, vectores_data):
-        self.nodos = nodos_data
-        self.vectores = vectores_data
+# Funciones trigonométricas para que el ADN pueda mutar usándolas
+def _sin(x): return np.sin(x)
+def _cos(x): return np.cos(x)
 
-        # Genes posibles: las tres ecuaciones de equilibrio estático
-        self.genes_posibles = ["SUM_FX", "SUM_FY"]
-        for nodo in self.nodos:
-            nodo_id = nodo.get("id", "Origen")
-            self.genes_posibles.append(f"SUM_MOMENTO_{nodo_id}")
+sin_func = make_function(function=_sin, name='seno', arity=1)
+cos_func = make_function(function=_cos, name='coseno', arity=1)
 
-    def _crear_individuo(self):
-        # Un individuo válido SIEMPRE incluye SUM_FX y SUM_FY
-        # El tercer gen es un momento en algún nodo (si existe) o el mejor disponible
-        genes_momento = [g for g in self.genes_posibles if g.startswith("SUM_MOMENTO_")]
-        tercer_gen = random.choice(genes_momento) if genes_momento else "SUM_FX"
-        individuo = ["SUM_FX", "SUM_FY", tercer_gen]
-        random.shuffle(individuo)
-        return individuo
+class GPTutorReal:
+    def __init__(self, nodos, vectores):
+        self.nodos = nodos
+        self.vectores = vectores
 
-    def evaluar_fitness(self, individuo):
-        puntaje = 1000
-        tipos_usados = set()      # Para penalizar tipos repetidos (ej. 2 momentos)
-        genes_usados = set()      # Para penalizar el mismo gen exacto repetido
+    def evolucionar_pasos(self):
+        if not self.vectores:
+            return {
+                "instrucciones_paso_a_paso": ["El lienzo está vacío. Dibuja vectores para evolucionar una solución."],
+                "log_del_motor": "No hay datos para entrenar."
+            }
 
-        tiene_fx = "SUM_FX" in individuo
-        tiene_fy = "SUM_FY" in individuo
+        # 1. CREAR EL DATASET SINTÉTICO (X_entrenamiento, Y_entrenamiento)
+        n_vectores = len(self.vectores)
+        n_muestras = 100 
+        
+        X_entrenamiento = np.random.rand(n_muestras, n_vectores * 2) * 100 
+        Y_entrenamiento = np.zeros(n_muestras)
 
-        # FIX: penalización fuerte si no tiene las sumatorias básicas
-        if not tiene_fx:
-            puntaje -= 400
-        if not tiene_fy:
-            puntaje -= 400
+        for i in range(n_muestras):
+            suma_y = 0.0
+            for v in range(n_vectores):
+                mag = X_entrenamiento[i, v*2]
+                ang = X_entrenamiento[i, v*2 + 1]
+                suma_y += mag * math.sin(math.radians(ang % 360)) 
+            Y_entrenamiento[i] = suma_y
 
-        for paso in individuo:
-            # FIX: penalizar gen repetido exacto
-            if paso in genes_usados:
-                puntaje -= 200
-            genes_usados.add(paso)
+        nombres_variables = []
+        for i in range(n_vectores):
+            nombres_variables.extend([f"Fuerza_{i+1}", f"AnguloRad_{i+1}"])
 
-            # FIX: penalizar el mismo TIPO de ecuación repetida
-            tipo = "MOMENTO" if paso.startswith("SUM_MOMENTO_") else paso
-            if tipo in tipos_usados:
-                puntaje -= 150   # dos momentos en distinto nodo: penaliza pero no elimina
-            tipos_usados.add(tipo)
-
-            # Premiar momento en nodo con más fuerzas concurrentes
-            if paso.startswith("SUM_MOMENTO_"):
-                nodo_id = paso.replace("SUM_MOMENTO_", "")
-                fuerzas_en_nodo = sum(
-                    1 for v in self.vectores
-                    if v.get("nodo_origen_id") == nodo_id
-                )
-                puntaje += 100 + (fuerzas_en_nodo * 50)
-            elif paso in ["SUM_FX", "SUM_FY"]:
-                puntaje += 80
-
-        return puntaje
-
-    def cruzar_y_mutar(self, padre1, padre2):
-        # Cruce en punto 1
-        hijo = [padre1[0], padre2[1], random.choice([padre1[2], padre2[2]])]
-
-        # Mutación (15% de probabilidad)
-        if random.random() < 0.15:
-            idx = random.randint(0, 2)
-            hijo[idx] = random.choice(self.genes_posibles)
-
-        # FIX: reparación post-mutación — garantizar que SUM_FX y SUM_FY estén presentes
-        for requerido in ["SUM_FX", "SUM_FY"]:
-            if requerido not in hijo:
-                # Reemplazar un gen de momento (si existe) o el gen menos valioso
-                idx_reemplazar = next(
-                    (i for i, g in enumerate(hijo) if g.startswith("SUM_MOMENTO_")),
-                    random.randint(0, 2)
-                )
-                hijo[idx_reemplazar] = requerido
-
-        return hijo
-
-    def entrenar_y_obtener_mejor_ruta(self, generaciones=50, tamaño_poblacion=50):
-        poblacion = [self._crear_individuo() for _ in range(tamaño_poblacion)]
-
-        for _ in range(generaciones):
-            poblacion.sort(key=lambda ind: self.evaluar_fitness(ind), reverse=True)
-            mejores = poblacion[:10]
-
-            nueva_poblacion = list(mejores)
-            while len(nueva_poblacion) < tamaño_poblacion:
-                p1, p2 = random.sample(mejores, 2)
-                nueva_poblacion.append(self.cruzar_y_mutar(p1, p2))
-
-            poblacion = nueva_poblacion
-
-        mejor_individuo = poblacion[0]
-        return self._traducir_adn_a_instrucciones(mejor_individuo)
-
-    def _traducir_adn_a_instrucciones(self, adn_campeon):
-        instrucciones = []
-        for i, gen in enumerate(adn_campeon):
-            if gen == "SUM_FX":
-                instrucciones.append(
-                    f"Paso {i+1}: Plantear la sumatoria de fuerzas en X (ΣFx = 0) "
-                    f"descomponiendo cada vector en su componente horizontal."
-                )
-            elif gen == "SUM_FY":
-                instrucciones.append(
-                    f"Paso {i+1}: Plantear la sumatoria de fuerzas en Y (ΣFy = 0) "
-                    f"descomponiendo cada vector en su componente vertical."
-                )
-            elif gen.startswith("SUM_MOMENTO_"):
-                nodo = gen.replace("SUM_MOMENTO_", "")
-                instrucciones.append(
-                    f"Paso {i+1}: Aplicar sumatoria de momentos respecto al {nodo} "
-                    f"(ΣM_{nodo} = 0) para eliminar las reacciones concurrentes en ese punto "
-                    f"y reducir el número de incógnitas."
-                )
-
-        instrucciones.append(
-            "Paso final: Con las ecuaciones anteriores, resolver el sistema algebraico "
-            "para obtener las reacciones desconocidas en los apoyos."
+        # 2. CONFIGURAR EL MODELO GPLEARN
+        modelo = SymbolicRegressor(
+            population_size=1000,
+            generations=20,
+            p_crossover=0.7,
+            p_subtree_mutation=0.1,
+            parsimony_coefficient=0.001,
+            feature_names=nombres_variables,
+            function_set=['add', 'sub', 'mul', 'div', sin_func, cos_func],
+            random_state=None, 
+            verbose=1 # MUY IMPORTANTE: Esto genera la salida en consola
         )
-        return instrucciones
+
+        # 3. SECUESTRO DE LA CONSOLA DE PYTHON
+        vieja_salida = sys.stdout 
+        capturador_log = io.StringIO() 
+        sys.stdout = capturador_log 
+
+        try:
+            # Entrenamos el modelo (sus prints caerán en el capturador)
+            modelo.fit(X_entrenamiento, Y_entrenamiento)
+        finally:
+            # Devolvemos la consola a la normalidad pase lo que pase
+            sys.stdout = vieja_salida 
+        
+        log_crudo = capturador_log.getvalue() # Sacamos el texto atrapado
+
+        # 4. EXTRAER Y TRADUCIR EL ÁRBOL GANADOR
+        formula_evolucionada = str(modelo._program)
+        fitness_score = modelo.run_details_['best_fitness'][-1]
+
+        pasos = self._generar_instrucciones(formula_evolucionada, fitness_score)
+        
+        # Devolvemos UN DICCIONARIO con ambas cosas
+        return {
+            "instrucciones_paso_a_paso": pasos,
+            "log_del_motor": log_crudo
+        }
+
+    def _generar_instrucciones(self, formula, fitness):
+        pasos = []
+        pasos.append("Paso 1: Se generaron 1000 iteraciones genéticas para descubrir la dinámica del diagrama.")
+        
+        if "seno" in formula or "coseno" in formula:
+            pasos.append("Paso 2: El modelo descubrió que la geometría requiere descomposición trigonométrica.")
+        
+        if "mul" in formula:
+            pasos.append("Paso 3: Se asocia (multiplica) la magnitud de cada fuerza con su componente direccional.")
+            
+        if "add" in formula or "sub" in formula:
+            pasos.append("Paso 4: Se agrupan (suman/restan) las componentes para hallar la resultante.")
+
+        pasos.append(f"Paso 5: La IA sintetizó la siguiente ecuación óptima para resolver el sistema:\n\nEcuación: {formula}")
+        pasos.append(f"Paso Final: El margen de error (fitness) de esta fórmula descubierta es de {fitness:.6f}.")
+        
+        return pasos
