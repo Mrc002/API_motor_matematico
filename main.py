@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Set
 import math
-from gp_tutor import GPTutor
+from gp_tutor import GPTutorReal
 
 import joblib
 
