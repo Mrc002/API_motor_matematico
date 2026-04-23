@@ -1,17 +1,18 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Set, Optional
+from typing import List, Dict, Set
 import math
-from gp_tutor import GPTutorReal
-import joblib
+
+# Asegúrate de importar la clase correcta de tu archivo gp_tutor
+from gp_tutor import GPTutorReal 
 
 app = FastAPI(title="Motor Matemático - Math IA")
 
-# Permitir CORS para todas las fuentes (Para que Chrome / Flutter Web no bloquee la app)
+# Permitir CORS para todas las fuentes (útil para pruebas en Chrome/Flutter Web)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Permite que cualquier cliente se conecte
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"], 
     allow_headers=["*"], 
@@ -59,6 +60,8 @@ class ValorFisico:
             return {"valor": valor_final, "es_calculable": True}
         else:
             return {
+                # FIX: Devolvemos 'valor' también aquí para que Flutter (Dart) no crashee al buscarlo
+                "valor": valor_final, 
                 "valor_simulado": valor_final,
                 "es_calculable": False,
                 "motivo": f"Depende de parámetros asumidos: {', '.join(self.variables_manchadas)}"
@@ -81,31 +84,28 @@ class NodoInput(BaseModel):
 
 class FuerzaInput(BaseModel):
     id: str
-    # etiqueta: str  <-- Si Flutter no envía "etiqueta", fallará. La pongo opcional.
-    etiqueta: Optional[str] = "F"
+    etiqueta: str
     nodo_origen_id: str
     magnitud: float
     angulo_grados: float
-    es_saliente: Optional[bool] = True
+    es_saliente: bool
 
 class BloqueFisicoInput(BaseModel):
     nodos: List[NodoInput]
     vectores_fuerza: List[FuerzaInput]
 
 class PeticionCalculo(BaseModel):
-    # IMPORTANTE: Optional porque Flutter actualmente solo envía bloque_fisico
-    bloque_contexto: Optional[ContextoInput] = None
-    unidades: Optional[UnidadesInput] = None
+    bloque_contexto: ContextoInput
+    unidades: UnidadesInput
     bloque_fisico: BloqueFisicoInput
     parametros_asumidos: Dict[str, float] = {}
 
 # ==========================================
-# 3. ENDPOINT PRINCIPAL (Tu motor de estática)
+# 3. ENDPOINT PRINCIPAL
 # ==========================================
 @app.post("/calcular")
 def calcular_diagrama(peticion: PeticionCalculo):
-    contexto_str = peticion.bloque_contexto.contexto_ingresado_por_usuario if peticion.bloque_contexto else "Sin contexto"
-    print(f"\n--- Recibiendo petición para: {contexto_str} ---")
+    print(f"\n--- Recibiendo petición para: {peticion.bloque_contexto.contexto_ingresado_por_usuario} ---")
     
     sum_fx = ValorFisico(0.0)
     sum_fy = ValorFisico(0.0)
@@ -114,7 +114,7 @@ def calcular_diagrama(peticion: PeticionCalculo):
     nodos_dict = {nodo.id: nodo for nodo in peticion.bloque_fisico.nodos}
 
     for fuerza in peticion.bloque_fisico.vectores_fuerza:
-        # Prevención de error si el nodo no existe
+        # FIX: Evitar que el servidor explote si Flutter envía un nodo que no existe
         if fuerza.nodo_origen_id not in nodos_dict:
             continue
             
@@ -140,6 +140,7 @@ def calcular_diagrama(peticion: PeticionCalculo):
         r_x = ValorFisico(nodo.x, variables_manchadas=manchas_brazo if nodo.x != 0 else None)
         r_y = ValorFisico(nodo.y, variables_manchadas=manchas_brazo if nodo.y != 0 else None)
         
+        # Momento = r x F
         momento_f_val = (r_x.valor * fy.valor) - (r_y.valor * fx.valor)
         
         # Unimos las manchas de todas las variables involucradas
@@ -171,43 +172,37 @@ def calcular_diagrama(peticion: PeticionCalculo):
         if sum_momentos.es_calculable and abs(sum_momentos.valor) >= tolerancia_equilibrio:
             incognitas_calculadas["Momento_Reaccion"] = round(-sum_momentos.valor, 3)
 
-    # Estructura de respuesta (Compatible con Flutter Dart)
+    # Estructura de respuesta
     resultado = {
         "bloque_resultados": {
-            "fx": round(sum_fx.valor, 3), # Tu app Flutter busca explícitamente "fx"
-            "fy": round(sum_fy.valor, 3), # Tu app Flutter busca explícitamente "fy"
-            "en_equilibrio": en_equilibrio,
+            "sumatoria_fuerzas_x": sum_fx.to_dict(),
+            "sumatoria_fuerzas_y": sum_fy.to_dict(),
+            "sumatoria_momentos": sum_momentos.to_dict(),
             "incognitas_resueltas": incognitas_calculadas,
-            
-            # Mantengo tu lógica avanzada aquí adentro
-            "detalles_avanzados": {
-                "sumatoria_fuerzas_x": sum_fx.to_dict(),
-                "sumatoria_fuerzas_y": sum_fy.to_dict(),
-                "sumatoria_momentos": sum_momentos.to_dict(),
-            }
+            "sistema_en_equilibrio": en_equilibrio
         }
     }
 
     print("--- Resultados calculados con éxito ---")
     return resultado
 
-# ==========================================
-# 4. ENDPOINT EXPERIMENTAL GPLEARN
-# ==========================================
+# --- NUEVO ENDPOINT PARA LA PROGRAMACIÓN GENÉTICA ---
 @app.post("/calculargp")
-async def calcular_gp(data: dict):
+async def calcular_con_tutor_genetico(payload: dict):
     try:
-        bloque = data.get("bloque_fisico", {})
-        nodos = bloque.get("nodos", [])
-        vectores = bloque.get("vectores_fuerza", [])
+        # Extraer los datos que envía Flutter
+        bloque_fisico = payload.get("bloque_fisico", {})
+        nodos = bloque_fisico.get("nodos", [])
+        vectores = bloque_fisico.get("vectores_fuerza", [])
         
-        if not nodos: 
-            raise HTTPException(status_code=400, detail="No hay nodos")
-        
+        if not nodos or not vectores:
+            raise HTTPException(status_code=400, detail="Se requieren nodos y vectores para generar los pasos.")
+
         # Invocamos la clase de Programación Genética
         motor_ia = GPTutorReal(nodos, vectores)
-        resultado = motor_ia.evolucionar_pasos()
         
-        return resultado
+        # Devolver el diccionario completo (pasos + log evolutivo)
+        return motor_ia.evolucionar_pasos()
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
