@@ -4,8 +4,8 @@ from pydantic import BaseModel
 from typing import List, Dict, Set
 import math
 
-# IMPORTACIÓN CORRECTA basada en tu archivo gp_tutor.py real
-from gp_tutor import GPTutor 
+# IMPORTACIÓN CORRECTA: Buscando tu clase real de Machine Learning
+from gp_tutor import GPTutorReal 
 
 app = FastAPI(title="Motor Matemático - Math IA")
 
@@ -184,16 +184,14 @@ async def calcular_con_tutor_genetico(payload: dict):
         if not nodos or not vectores:
             return {"instrucciones_paso_a_paso": ["Se requieren nodos y vectores para generar los pasos."]}
 
-        # Llama a TU clase exacta de IA
-        tutor_ia = GPTutor(nodos, vectores)
+        # Llama a TU clase exacta de Machine Learning
+        motor_ia = GPTutorReal(nodos, vectores)
         
-        # Ejecuta TU método exacto
-        pasos_evolutivos = tutor_ia.entrenar_y_obtener_mejor_ruta()
+        # Ejecuta la evolución y obtiene el log + instrucciones
+        resultado = motor_ia.evolucionar_pasos()
 
         # Devuelve el formato que el motor_api_service en Flutter espera extraer
-        return {
-            "instrucciones_paso_a_paso": pasos_evolutivos
-        }
+        return resultado
         
     except Exception as e:
         print(f"🔥 ERROR FATAL EN GP: {str(e)}") 
