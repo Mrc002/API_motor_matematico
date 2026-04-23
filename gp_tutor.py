@@ -45,8 +45,8 @@ class GPTutorReal:
 
         # 2. CONFIGURAR EL MODELO GPLEARN
         modelo = SymbolicRegressor(
-            population_size=1000,
-            generations=20,
+            population_size=200,
+            generations=10,
             p_crossover=0.7,
             p_subtree_mutation=0.1,
             parsimony_coefficient=0.001,
