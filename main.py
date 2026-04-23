@@ -1,20 +1,20 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional
 import math
 from gp_tutor import GPTutorReal
-
 import joblib
 
 app = FastAPI(title="Motor Matemático - Math IA")
-# Permitir CORS para todas las fuentes (útil para pruebas, pero ajustar en producción)
+
+# Permitir CORS para todas las fuentes (Para que Chrome / Flutter Web no bloquee la app)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Permite que cualquier cliente (como Chrome) se conecte
+    allow_origins=["*"], # Permite que cualquier cliente se conecte
     allow_credentials=True,
-    allow_methods=["*"], # Permite peticiones POST, GET, etc.
-    allow_headers=["*"], # Permite cualquier encabezado en el JSON
+    allow_methods=["*"], 
+    allow_headers=["*"], 
 )
 
 # ==========================================
@@ -81,28 +81,31 @@ class NodoInput(BaseModel):
 
 class FuerzaInput(BaseModel):
     id: str
-    etiqueta: str
+    # etiqueta: str  <-- Si Flutter no envía "etiqueta", fallará. La pongo opcional.
+    etiqueta: Optional[str] = "F"
     nodo_origen_id: str
     magnitud: float
     angulo_grados: float
-    es_saliente: bool
+    es_saliente: Optional[bool] = True
 
 class BloqueFisicoInput(BaseModel):
     nodos: List[NodoInput]
     vectores_fuerza: List[FuerzaInput]
 
 class PeticionCalculo(BaseModel):
-    bloque_contexto: ContextoInput
-    unidades: UnidadesInput
+    # IMPORTANTE: Optional porque Flutter actualmente solo envía bloque_fisico
+    bloque_contexto: Optional[ContextoInput] = None
+    unidades: Optional[UnidadesInput] = None
     bloque_fisico: BloqueFisicoInput
     parametros_asumidos: Dict[str, float] = {}
 
 # ==========================================
-# 3. ENDPOINT PRINCIPAL
+# 3. ENDPOINT PRINCIPAL (Tu motor de estática)
 # ==========================================
 @app.post("/calcular")
 def calcular_diagrama(peticion: PeticionCalculo):
-    print(f"\n--- Recibiendo petición para: {peticion.bloque_contexto.contexto_ingresado_por_usuario} ---")
+    contexto_str = peticion.bloque_contexto.contexto_ingresado_por_usuario if peticion.bloque_contexto else "Sin contexto"
+    print(f"\n--- Recibiendo petición para: {contexto_str} ---")
     
     sum_fx = ValorFisico(0.0)
     sum_fy = ValorFisico(0.0)
@@ -111,6 +114,10 @@ def calcular_diagrama(peticion: PeticionCalculo):
     nodos_dict = {nodo.id: nodo for nodo in peticion.bloque_fisico.nodos}
 
     for fuerza in peticion.bloque_fisico.vectores_fuerza:
+        # Prevención de error si el nodo no existe
+        if fuerza.nodo_origen_id not in nodos_dict:
+            continue
+            
         nodo = nodos_dict[fuerza.nodo_origen_id]
         angulo_rad = math.radians(fuerza.angulo_grados)
         
@@ -130,15 +137,8 @@ def calcular_diagrama(peticion: PeticionCalculo):
 
         # Manejo de manchas para el momento (Brazo de palanca)
         manchas_brazo = set(peticion.parametros_asumidos.keys())
-        # Si el nodo no está en el origen y hay parámetros asumidos, el brazo se "mancha"
         r_x = ValorFisico(nodo.x, variables_manchadas=manchas_brazo if nodo.x != 0 else None)
         r_y = ValorFisico(nodo.y, variables_manchadas=manchas_brazo if nodo.y != 0 else None)
-        
-        # Momento = r x F
-        # Corrección de fórmula de momento en 2D (r_x * F_y - r_y * F_x)
-        # Nota: Convertimos a variables para usar la sobrecarga de operadores de ValorFisico
-        # Si r_x y r_y no estuvieran manchados, esto funciona perfecto.
-        # Aquí asumiremos que la sobrecarga de operadores que hiciste soporta multiplicaciones directas.
         
         momento_f_val = (r_x.valor * fy.valor) - (r_y.valor * fx.valor)
         
@@ -157,14 +157,12 @@ def calcular_diagrama(peticion: PeticionCalculo):
             en_equilibrio = True
 
     # ==========================================
-    # NUEVA LÓGICA: ESTÁTICA INVERSA (Reacciones)
+    # LÓGICA: ESTÁTICA INVERSA (Reacciones)
     # ==========================================
     incognitas_calculadas = {}
     
-    # Si no está en equilibrio, calculamos qué fuerzas faltan para que lo esté
     if not en_equilibrio:
         if sum_fx.es_calculable and abs(sum_fx.valor) >= tolerancia_equilibrio:
-            # La reacción es el negativo exacto de la suma de fuerzas
             incognitas_calculadas["Reaccion_Ax"] = round(-sum_fx.valor, 3)
             
         if sum_fy.es_calculable and abs(sum_fy.valor) >= tolerancia_equilibrio:
@@ -173,24 +171,29 @@ def calcular_diagrama(peticion: PeticionCalculo):
         if sum_momentos.es_calculable and abs(sum_momentos.valor) >= tolerancia_equilibrio:
             incognitas_calculadas["Momento_Reaccion"] = round(-sum_momentos.valor, 3)
 
-    # Estructura de respuesta
+    # Estructura de respuesta (Compatible con Flutter Dart)
     resultado = {
         "bloque_resultados": {
-            "sumatoria_fuerzas_x": sum_fx.to_dict(),
-            "sumatoria_fuerzas_y": sum_fy.to_dict(),
-            "sumatoria_momentos": sum_momentos.to_dict(),
-            "incognitas_resueltas": incognitas_calculadas, # <--- ¡Aquí inyectamos las reacciones!
-            "sistema_en_equilibrio": en_equilibrio
+            "fx": round(sum_fx.valor, 3), # Tu app Flutter busca explícitamente "fx"
+            "fy": round(sum_fy.valor, 3), # Tu app Flutter busca explícitamente "fy"
+            "en_equilibrio": en_equilibrio,
+            "incognitas_resueltas": incognitas_calculadas,
+            
+            # Mantengo tu lógica avanzada aquí adentro
+            "detalles_avanzados": {
+                "sumatoria_fuerzas_x": sum_fx.to_dict(),
+                "sumatoria_fuerzas_y": sum_fy.to_dict(),
+                "sumatoria_momentos": sum_momentos.to_dict(),
+            }
         }
     }
 
     print("--- Resultados calculados con éxito ---")
     return resultado
 
-# ... (Tu código actual y tu endpoint /calcular se quedan intactos) ...
-
-# ... (Aquí va tu endpoint /calcular normal) ...
-
+# ==========================================
+# 4. ENDPOINT EXPERIMENTAL GPLEARN
+# ==========================================
 @app.post("/calculargp")
 async def calcular_gp(data: dict):
     try:
@@ -201,10 +204,10 @@ async def calcular_gp(data: dict):
         if not nodos: 
             raise HTTPException(status_code=400, detail="No hay nodos")
         
+        # Invocamos la clase de Programación Genética
         motor_ia = GPTutorReal(nodos, vectores)
         resultado = motor_ia.evolucionar_pasos()
         
-        # Devolvemos el diccionario completo (pasos + log)
         return resultado
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
